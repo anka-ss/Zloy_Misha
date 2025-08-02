@@ -30,16 +30,16 @@ const FORBIDDEN_PHRASES = [
     'в личке',
     'пиши в лс',
     'напиши в лс',
-    'в личные сообщения'
-    'скинь в личку'
-    'в личку'
-    'кину в личку'
-    'пишите в личку'
-    'вышлю в лс'
-    'скинь лс'
-    'пиши лс'
-    'напиши лс'
-    'скинь в лс',
+    'в личные сообщения',
+    'скинь в личку',
+    'в личку',
+    'кину в личку',
+    'пишите в личку',
+    'вышлю в лс',
+    'скинь лс',
+    'пиши лс',
+    'напиши лс',
+    'скинь в лс'
 ];
 
 // Фразы, за которые выдается предупреждение
@@ -90,6 +90,17 @@ function isInBlackList(userId) {
     return blackList.has(userId);
 }
 
+// Функция проверки, является ли пользователь администратором
+async function isUserAdmin(chatId, userId) {
+    try {
+        const chatMember = await bot.getChatMember(chatId, userId);
+        return ['administrator', 'creator'].includes(chatMember.status);
+    } catch (error) {
+        console.error('Ошибка при проверке прав администратора:', error);
+        return false;
+    }
+}
+
 // Основной обработчик сообщений
 bot.on('message', async (msg) => {
     try {
@@ -108,6 +119,12 @@ bot.on('message', async (msg) => {
             if (!MONITORED_TOPICS.includes(msg.message_thread_id.toString())) {
                 return;
             }
+        }
+
+        // Проверяем, не является ли пользователь администратором
+        const isAdmin = await isUserAdmin(chatId, userId);
+        if (isAdmin) {
+            return; // Игнорируем сообщения от администраторов
         }
 
         // Проверяем, не в черном списке ли пользователь
@@ -192,12 +209,8 @@ bot.onText(/\/warnings (.+)/, async (msg, match) => {
     const userId = match[1];
     
     // Проверяем права администратора
-    try {
-        const chatMember = await bot.getChatMember(chatId, msg.from.id);
-        if (!['administrator', 'creator'].includes(chatMember.status)) {
-            return;
-        }
-    } catch (error) {
+    const isAdmin = await isUserAdmin(chatId, msg.from.id);
+    if (!isAdmin) {
         return;
     }
     
@@ -209,12 +222,8 @@ bot.onText(/\/blacklist/, async (msg) => {
     const chatId = msg.chat.id;
     
     // Проверяем права администратора
-    try {
-        const chatMember = await bot.getChatMember(chatId, msg.from.id);
-        if (!['administrator', 'creator'].includes(chatMember.status)) {
-            return;
-        }
-    } catch (error) {
+    const isAdmin = await isUserAdmin(chatId, msg.from.id);
+    if (!isAdmin) {
         return;
     }
     
@@ -231,12 +240,8 @@ bot.onText(/\/unban (.+)/, async (msg, match) => {
     const userId = parseInt(match[1]);
     
     // Проверяем права администратора
-    try {
-        const chatMember = await bot.getChatMember(chatId, msg.from.id);
-        if (!['administrator', 'creator'].includes(chatMember.status)) {
-            return;
-        }
-    } catch (error) {
+    const isAdmin = await isUserAdmin(chatId, msg.from.id);
+    if (!isAdmin) {
         return;
     }
     
