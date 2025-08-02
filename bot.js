@@ -152,13 +152,8 @@ bot.on('message', async (msg) => {
 
         // Проверяем, не в черном списке ли пользователь
         if (isInBlackList(userId)) {
-            // Удаляем сообщение от пользователя из черного списка
-            try {
-                await bot.deleteMessage(chatId, messageId);
-                console.log(`Удалено сообщение от пользователя в черном списке: ${userId}`);
-            } catch (error) {
-                console.error('Ошибка при удалении сообщения от пользователя в черном списке:', error);
-            }
+            // Пользователь в черном списке - он уже заглушен, ничего не делаем
+            console.log(`Сообщение от заглушенного пользователя ${userId}: "${text}"`);
             return;
         }
 
@@ -167,16 +162,6 @@ bot.on('message', async (msg) => {
             try {
                 await bot.deleteMessage(chatId, messageId);
                 console.log(`Удалено сообщение с запрещенной фразой от пользователя ${userId}: "${text}"`);
-                
-                // Отправляем предупреждение в личку (опционально)
-                try {
-                    await bot.sendMessage(userId, 
-                        '⚠️ Ваше сообщение в группе было удалено за использование запрещенных фраз. ' +
-                        'Пожалуйста, соблюдайте правила группы.'
-                    );
-                } catch (pmError) {
-                    console.log(`Не удалось отправить ЛС пользователю ${userId}`);
-                }
             } catch (error) {
                 console.error('Ошибка при удалении сообщения:', error);
             }
@@ -194,18 +179,29 @@ bot.on('message', async (msg) => {
                 // Добавляем в черный список
                 addToBlackList(userId);
                 
-                // Удаляем текущее сообщение
+                // Мьютим пользователя в группе навсегда
                 try {
-                    await bot.deleteMessage(chatId, messageId);
-                } catch (error) {
-                    console.error('Ошибка при удалении сообщения:', error);
+                    await bot.restrictChatMember(chatId, userId, {
+                        can_send_messages: false,
+                        can_send_media_messages: false,
+                        can_send_polls: false,
+                        can_send_other_messages: false,
+                        can_add_web_page_previews: false,
+                        can_change_info: false,
+                        can_invite_users: false,
+                        can_pin_messages: false,
+                        until_date: 0 // 0 = навсегда
+                    });
+                    console.log(`Пользователь ${userId} заглушен в группе навсегда`);
+                } catch (muteError) {
+                    console.error('Ошибка при мьюте пользователя:', muteError);
+                    // Если не удалось замьютить, продолжаем с удалением сообщений
                 }
                 
                 // Отправляем сообщение о добавлении в черный список
                 try {
                     await bot.sendMessage(chatId, 
-                        `❌ ${username}, вы получили 3 предупреждения и добавлены в черный список. ` +
-                        `Ваши сообщения будут автоматически удаляться.`
+                        `❌ ${username}, вы получили 3 предупреждения и добавлены в черный список. (3/3)\n[ваш Злой Миша]`
                     );
                 } catch (error) {
                     console.error('Ошибка при отправке сообщения о бане:', error);
@@ -214,12 +210,14 @@ bot.on('message', async (msg) => {
                 console.log(`Пользователь ${userId} добавлен в черный список`);
             } else {
                 // Отправляем предупреждение
-                await bot.sendMessage(chatId, 
-                    `⚠️ ${username}, по правилам это запрещено. ` +
-                    `Вам ${warnings === 1 ? 'первое' : warnings === 2 ? 'второе' : 'третье'} предупреждение. ` +
-                    `(${warnings}/3)`,
-                    { reply_to_message_id: messageId }
-                );
+                let warningText;
+                if (warnings === 1) {
+                    warningText = `⚠️ ${username}, по правилам это запрещено. Вам первое предупреждение. (1/3)\n[ваш Злой Миша]`;
+                } else if (warnings === 2) {
+                    warningText = `⚠️ ${username}, по правилам это запрещено. Вам второе предупреждение. Следующее будет последним. (2/3)\n[ваш Злой Миша]`;
+                }
+                
+                await bot.sendMessage(chatId, warningText, { reply_to_message_id: messageId });
                 
                 console.log(`Пользователь ${userId} получил предупреждение ${warnings}/3`);
             }
@@ -296,10 +294,28 @@ bot.onText(/\/unban (.+)/, async (msg, match) => {
         return;
     }
     
+    // Удаляем из черного списка
     blackList.delete(userId);
     userWarnings.delete(userId);
     
-    await bot.sendMessage(chatId, `Пользователь ${userId} удален из черного списка и его предупреждения сброшены.`);
+    // Размьючиваем пользователя
+    try {
+        await bot.restrictChatMember(chatId, userId, {
+            can_send_messages: true,
+            can_send_media_messages: true,
+            can_send_polls: true,
+            can_send_other_messages: true,
+            can_add_web_page_previews: true,
+            can_change_info: false,
+            can_invite_users: true,
+            can_pin_messages: false
+        });
+        console.log(`Пользователь ${userId} размьючен`);
+    } catch (unmuteError) {
+        console.error('Ошибка при размьючивании:', unmuteError);
+    }
+    
+    await bot.sendMessage(chatId, `Пользователь ${userId} удален из черного списка, размьючен и его предупреждения сброшены.`);
 });
 
 // Обработка ошибок бота
