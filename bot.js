@@ -95,6 +95,16 @@ const WARNING_PHRASES = [
     'БОТ ДУРАК'
 ];
 
+// Фразы, на которые бот отвечает объяснением об удалении
+const DELETION_QUESTION_PHRASES = [
+    'почему удалил',
+    'удаляются сообщения',
+    'удалилось сообщение',
+    'почему удалилось',
+    'мои сообщения удалились',
+    'удалились сообщения'
+];
+
 // Функция проверки, содержит ли текст запрещенные фразы
 function containsForbiddenPhrase(text) {
     const lowerText = text.toLowerCase();
@@ -128,6 +138,12 @@ function containsForbiddenPhrase(text) {
 function containsWarningPhrase(text) {
     const lowerText = text.toLowerCase();
     return WARNING_PHRASES.some(phrase => lowerText.includes(phrase));
+}
+
+// Функция проверки, содержит ли текст вопросы об удалении
+function containsDeletionQuestion(text) {
+    const lowerText = text.toLowerCase();
+    return DELETION_QUESTION_PHRASES.some(phrase => lowerText.includes(phrase));
 }
 
 // Функция получения количества предупреждений пользователя
@@ -205,6 +221,20 @@ bot.on('message', async (msg) => {
                 console.error('Ошибка при удалении сообщения:', error);
             }
             return; // ВАЖНО: выходим здесь, не проверяем на предупреждения
+        }
+
+        // Проверяем на вопросы об удалении сообщений
+        if (containsDeletionQuestion(text)) {
+            try {
+                const explanationMessage = 
+                    `✂️ Это я удалил ваше сообщение из-за нарушения правил. Прочитайте их еще раз внимательнее. Если произошла ошибка, напишите админам в бот: @ProPerevod_bot\n[ваш Злой Миша]`;
+                
+                await bot.sendMessage(chatId, explanationMessage, { reply_to_message_id: messageId });
+                console.log(`Отправлено объяснение об удалении пользователю ${userId}`);
+            } catch (error) {
+                console.error('Ошибка при отправке объяснения:', error);
+            }
+            return; // Выходим, не проверяем на предупреждения
         }
 
         // Проверяем на фразы для предупреждения
