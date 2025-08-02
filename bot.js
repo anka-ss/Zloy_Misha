@@ -16,13 +16,13 @@ const MONITORED_TOPICS = process.env.MONITORED_TOPICS ? process.env.MONITORED_TO
 // ID группы для отчетов о банах
 const REPORTS_GROUP_ID = process.env.REPORTS_GROUP_ID;
 
-// Создаем экземпляр бота с увеличенным тайм-аутом
+// Создаем экземпляр бота с оптимизированными настройками
 const bot = new TelegramBot(BOT_TOKEN, { 
     polling: {
-        interval: 1000,
+        interval: 300,
         autoStart: true,
         params: {
-            timeout: 30
+            timeout: 10
         }
     }
 });
@@ -176,9 +176,6 @@ bot.on('message', async (msg) => {
         const messageId = msg.message_id;
         const text = msg.text || msg.caption || '';
         
-        // Дополнительное логирование для диагностики
-        console.log(`[${new Date().toLocaleTimeString()}] Обработка сообщения от ${userId} в чате ${chatId}: "${text.substring(0, 50)}..."`);
-        
         // Проверяем, что это нужная группа (НЕ группа отчетов)
         if (!MONITORED_GROUPS.includes(chatId.toString())) {
             return;
@@ -192,29 +189,22 @@ bot.on('message', async (msg) => {
         // Проверяем, что это нужная тема (если указаны темы)
         if (MONITORED_TOPICS.length > 0 && msg.message_thread_id) {
             if (!MONITORED_TOPICS.includes(msg.message_thread_id.toString())) {
-                console.log(`Сообщение в неотслеживаемой теме ${msg.message_thread_id}, пропускаем`);
                 return;
             }
-        } else if (msg.message_thread_id) {
-            // Если темы не заданы, но сообщение в теме - логируем ID темы для настройки
-            console.log(`Сообщение в теме ${msg.message_thread_id}. Для мониторинга добавьте ID в MONITORED_TOPICS`);
         }
 
-        // Проверяем, не является ли пользователь администратором (ПРОСТАЯ проверка)
+        // Быстрая проверка администратора (без детального логирования)
         try {
             const chatMember = await bot.getChatMember(chatId, userId);
             if (['administrator', 'creator'].includes(chatMember.status)) {
-                return; // Игнорируем сообщения от администраторов
+                return;
             }
         } catch (error) {
-            // Если не удалось проверить статус, продолжаем как с обычным пользователем
-            console.log(`Не удалось проверить статус пользователя ${userId}:`, error.message);
+            // Игнорируем ошибки проверки статуса для скорости
         }
 
         // Проверяем, не в черном списке ли пользователь
         if (isInBlackList(userId)) {
-            // Пользователь в черном списке - он уже заглушен, ничего не делаем
-            console.log(`Сообщение от заглушенного пользователя ${userId}: "${text}"`);
             return;
         }
 
@@ -222,22 +212,19 @@ bot.on('message', async (msg) => {
         if (containsForbiddenPhrase(text)) {
             try {
                 await bot.deleteMessage(chatId, messageId);
-                console.log(`Удалено сообщение с запрещенной фразой от пользователя ${userId}: "${text}"`);
+                console.log(`Удалено: ${userId} - "${text.substring(0, 30)}..."`);
             } catch (error) {
-                console.error('Ошибка при удалении сообщения:', error);
+                // Игнорируем ошибки удаления для скорости
             }
-            return; // ВАЖНО: выходим здесь, не проверяем на предупреждения
+            return;
         }
 
         // Проверяем на вопросы об удалении сообщений
         if (containsDeletionQuestion(text)) {
-            // Проверяем, не отправляли ли мы недавно объяснение этому пользователю
             const lastExplanation = recentExplanations.get(userId);
             const now = Date.now();
             
-            // Если прошло меньше 30 секунд с последнего объяснения, не отправляем повторно
             if (lastExplanation && (now - lastExplanation) < 30000) {
-                console.log(`Пропускаем дублирующее объяснение для пользователя ${userId}`);
                 return;
             }
             
@@ -246,98 +233,71 @@ bot.on('message', async (msg) => {
                 const explanationMessage = 
                     `✂️ ${username}, это я удалил ваше сообщение из-за нарушения правил. Прочитайте их еще раз внимательнее. Если произошла ошибка, напишите админам в бот: @ProPerevod_bot\n[ваш Злой Миша]`;
                 
-                // Подготавливаем опции для отправки
                 const sendOptions = { reply_to_message_id: messageId };
-                
-                // Если сообщение в подтеме, отвечаем в ту же подтему
                 if (msg.message_thread_id) {
                     sendOptions.message_thread_id = msg.message_thread_id;
                 }
                 
                 await bot.sendMessage(chatId, explanationMessage, sendOptions);
-                
-                // Запоминаем время отправки объяснения
                 recentExplanations.set(userId, now);
-                
-                console.log(`Отправлено объяснение об удалении пользователю ${userId} в ${new Date().toLocaleTimeString()}`);
+                console.log(`Объяснение отправлено: ${userId}`);
             } catch (error) {
-                console.error('Ошибка при отправке объяснения:', error);
+                // Игнорируем ошибки отправки для скорости
             }
-            return; // Выходим, не проверяем на предупреждения
+            return;
         }
 
         // Проверяем на фразы для предупреждения
         if (containsWarningPhrase(text)) {
             const warnings = addWarning(userId);
-            
-            // Получаем информацию о пользователе
             const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
             
             if (warnings >= 3) {
                 // Добавляем в черный список
                 addToBlackList(userId);
                 
-                // Мьютим пользователя в группе навсегда
-                try {
-                    await bot.restrictChatMember(chatId, userId, {
-                        can_send_messages: false,
-                        can_send_media_messages: false,
-                        can_send_polls: false,
-                        can_send_other_messages: false,
-                        can_add_web_page_previews: false,
-                        can_change_info: false,
-                        can_invite_users: false,
-                        can_pin_messages: false,
-                        until_date: 0 // 0 = навсегда
-                    });
-                    console.log(`Пользователь ${userId} заглушен в группе навсегда`);
-                } catch (muteError) {
-                    console.error('Ошибка при мьюте пользователя:', muteError);
-                    // Если не удалось замьютить, продолжаем с удалением сообщений
+                // Мьютим пользователя (без ожидания результата)
+                bot.restrictChatMember(chatId, userId, {
+                    can_send_messages: false,
+                    can_send_media_messages: false,
+                    can_send_polls: false,
+                    can_send_other_messages: false,
+                    can_add_web_page_previews: false,
+                    can_change_info: false,
+                    can_invite_users: false,
+                    can_pin_messages: false,
+                    until_date: 0
+                }).catch(() => {}); // Игнорируем ошибки
+                
+                // Отправляем сообщение о бане
+                const banMessage = `❌ ${username}, вы получили 3 предупреждения и добавлены в черный список. (3/3)\n[ваш Злой Миша]`;
+                const sendOptions = {};
+                if (msg.message_thread_id) {
+                    sendOptions.message_thread_id = msg.message_thread_id;
                 }
                 
-                // Отправляем сообщение о добавлении в черный список в основную группу
-                try {
-                    const banMessage = `❌ ${username}, вы получили 3 предупреждения и добавлены в черный список. (3/3)\n[ваш Злой Миша]`;
-                    
-                    // Подготавливаем опции для отправки
-                    const sendOptions = {};
-                    
-                    // Если сообщение в подтеме, отвечаем в ту же подтему
-                    if (msg.message_thread_id) {
-                        sendOptions.message_thread_id = msg.message_thread_id;
-                    }
-                    
-                    await bot.sendMessage(chatId, banMessage, sendOptions);
-                } catch (error) {
-                    console.error('Ошибка при отправке сообщения о бане:', error);
-                }
+                bot.sendMessage(chatId, banMessage, sendOptions).catch(() => {});
                 
-                // Отправляем отчет в группу отчетов
+                // Отправляем отчет (асинхронно)
                 if (REPORTS_GROUP_ID) {
-                    try {
-                        const groupName = msg.chat.title || `группе ${chatId}`;
-                        const userInfo = msg.from.username 
-                            ? `@${msg.from.username} (ID: ${userId})`
-                            : `${msg.from.first_name} (ID: ${userId})`;
-                        
-                        const reportMessage = 
-                            `🚫 НОВЫЙ БАН\n\n` +
-                            `👤 Пользователь: ${userInfo}\n` +
-                            `💬 Группа: ${groupName}\n` +
-                            `📝 Нарушение: "${text}"\n` +
-                            `⚠️ Предупреждений: 3/3\n` +
-                            `🕐 Время: ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}\n\n` +
-                            `[Злой Миша - отчет о модерации]`;
-                        
-                        await bot.sendMessage(REPORTS_GROUP_ID, reportMessage);
-                        console.log(`Отчет о бане отправлен в группу отчетов: ${userId}`);
-                    } catch (reportError) {
-                        console.error('Ошибка при отправке отчета:', reportError);
-                    }
+                    const groupName = msg.chat.title || `группе ${chatId}`;
+                    const userInfo = msg.from.username 
+                        ? `@${msg.from.username} (ID: ${userId})`
+                        : `${msg.from.first_name} (ID: ${userId})`;
+                    
+                    const reportMessage = 
+                        `🚫 НОВЫЙ БАН\n\n` +
+                        `👤 Пользователь: ${userInfo}\n` +
+                        `💬 Группа: ${groupName}\n` +
+                        `📝 Нарушение: "${text}"\n` +
+                        `⚠️ Предупреждений: 3/3\n` +
+                        `🕐 Время: ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}\n\n` +
+                        `[Злой Миша - отчет о модерации]`;
+                    
+                    bot.sendMessage(REPORTS_GROUP_ID, reportMessage).catch(() => {});
                 }
                 
-                console.log(`Пользователь ${userId} добавлен в черный список`);
+                console.log(`БАН: ${userId} (${username})`);
             } else {
                 // Отправляем предупреждение
                 let warningText;
@@ -347,21 +307,17 @@ bot.on('message', async (msg) => {
                     warningText = `⚠️ ${username}, по правилам это запрещено. Вам второе предупреждение. Следующее будет последним. (2/3)\n[ваш Злой Миша]`;
                 }
                 
-                // Подготавливаем опции для отправки
                 const sendOptions = { reply_to_message_id: messageId };
-                
-                // Если сообщение в подтеме, отвечаем в ту же подтему
                 if (msg.message_thread_id) {
                     sendOptions.message_thread_id = msg.message_thread_id;
                 }
                 
-                await bot.sendMessage(chatId, warningText, sendOptions);
-                
-                console.log(`Пользователь ${userId} получил предупреждение ${warnings}/3`);
+                bot.sendMessage(chatId, warningText, sendOptions).catch(() => {});
+                console.log(`Предупреждение ${warnings}/3: ${userId}`);
             }
         }
     } catch (error) {
-        console.error('Ошибка при обработке сообщения:', error);
+        console.error('Ошибка обработки:', error.message);
     }
 });
 
