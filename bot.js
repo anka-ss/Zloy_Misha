@@ -200,8 +200,12 @@ bot.on('message', async (msg) => {
         // Проверяем, что это нужная тема (если указаны темы)
         if (MONITORED_TOPICS.length > 0 && msg.message_thread_id) {
             if (!MONITORED_TOPICS.includes(msg.message_thread_id.toString())) {
+                console.log(`Сообщение в неотслеживаемой теме ${msg.message_thread_id}, пропускаем`);
                 return;
             }
+        } else if (msg.message_thread_id) {
+            // Если темы не заданы, но сообщение в теме - логируем ID темы для настройки
+            console.log(`Сообщение в теме ${msg.message_thread_id}. Для мониторинга добавьте ID в MONITORED_TOPICS`);
         }
 
         // Проверяем, не является ли пользователь администратором (ПРОСТАЯ проверка)
@@ -249,7 +253,15 @@ bot.on('message', async (msg) => {
                 const explanationMessage = 
                     `✂️ Это я удалил ваше сообщение из-за нарушения правил. Прочитайте их еще раз внимательнее. Если произошла ошибка, напишите админам в бот: @ProPerevod_bot\n[ваш Злой Миша]`;
                 
-                await bot.sendMessage(chatId, explanationMessage, { reply_to_message_id: messageId });
+                // Подготавливаем опции для отправки
+                const sendOptions = { reply_to_message_id: messageId };
+                
+                // Если сообщение в подтеме, отвечаем в ту же подтему
+                if (msg.message_thread_id) {
+                    sendOptions.message_thread_id = msg.message_thread_id;
+                }
+                
+                await bot.sendMessage(chatId, explanationMessage, sendOptions);
                 
                 // Запоминаем время отправки объяснения
                 recentExplanations.set(userId, now);
@@ -293,9 +305,17 @@ bot.on('message', async (msg) => {
                 
                 // Отправляем сообщение о добавлении в черный список в основную группу
                 try {
-                    await bot.sendMessage(chatId, 
-                        `❌ ${username}, вы получили 3 предупреждения и добавлены в черный список. (3/3)\n[ваш Злой Миша]`
-                    );
+                    const banMessage = `❌ ${username}, вы получили 3 предупреждения и добавлены в черный список. (3/3)\n[ваш Злой Миша]`;
+                    
+                    // Подготавливаем опции для отправки
+                    const sendOptions = {};
+                    
+                    // Если сообщение в подтеме, отвечаем в ту же подтему
+                    if (msg.message_thread_id) {
+                        sendOptions.message_thread_id = msg.message_thread_id;
+                    }
+                    
+                    await bot.sendMessage(chatId, banMessage, sendOptions);
                 } catch (error) {
                     console.error('Ошибка при отправке сообщения о бане:', error);
                 }
@@ -334,7 +354,15 @@ bot.on('message', async (msg) => {
                     warningText = `⚠️ ${username}, по правилам это запрещено. Вам второе предупреждение. Следующее будет последним. (2/3)\n[ваш Злой Миша]`;
                 }
                 
-                await bot.sendMessage(chatId, warningText, { reply_to_message_id: messageId });
+                // Подготавливаем опции для отправки
+                const sendOptions = { reply_to_message_id: messageId };
+                
+                // Если сообщение в подтеме, отвечаем в ту же подтему
+                if (msg.message_thread_id) {
+                    sendOptions.message_thread_id = msg.message_thread_id;
+                }
+                
+                await bot.sendMessage(chatId, warningText, sendOptions);
                 
                 console.log(`Пользователь ${userId} получил предупреждение ${warnings}/3`);
             }
@@ -451,7 +479,15 @@ bot.onText(/\/misha/, async (msg) => {
         `Привет! Я — бот Злой Миша. Теперь я буду активно следить за правилами в чатах. Ждите меня, я приду 👹\n[ваш Злой Миша]`;
     
     try {
-        await bot.sendMessage(chatId, greetingMessage);
+        // Подготавливаем опции для отправки
+        const sendOptions = {};
+        
+        // Если команда в подтеме, отвечаем в ту же подтему
+        if (msg.message_thread_id) {
+            sendOptions.message_thread_id = msg.message_thread_id;
+        }
+        
+        await bot.sendMessage(chatId, greetingMessage, sendOptions);
         console.log(`Команда /misha выполнена пользователем ${msg.from.id} в чате ${chatId}`);
     } catch (error) {
         console.error('Ошибка при отправке приветствия:', error);
