@@ -45,21 +45,43 @@ const FORBIDDEN_PHRASES = [
 // Фразы, за которые выдается предупреждение
 const WARNING_PHRASES = [
     'есть машинка',
+    'Есть машинка',
+    'Есть Машинка',
     'скинь машинку',
+    'Скинь машинку',
+    'Скинь Машинку',
     'скину машинку',
+    'Скину машинку',
+    'Скину Машинку',
     'машинка',
+    'Машинка',
     'го машинку',
+    'Го машинку',
+    'Го Машинку',
     'лс машинка',
+    'ЛС машинка',
+    'ЛС Машинка',
+    'Лс машинка',
+    'Лс Машинка',
     'машинка лс',
+    'Машинка лс',
+    'Машинка ЛС',
+    'Машинка Лс',
     'лс машинку',
+    'ЛС машинку',
+    'ЛС Машинку',
+    'Лс машинку',
+    'Лс Машинку',
     'машнка',
+    'Машнка',
     'личка',
     'Личка',
     'файл',
     'Файл',
     'бот дурак',
     'Бот дурак',
-    'Бот Дурак'
+    'Бот Дурак',
+    'БОТ ДУРАК'
 ];
 
 // Функция проверки, содержит ли текст запрещенные фразы
@@ -158,7 +180,7 @@ bot.on('message', async (msg) => {
             } catch (error) {
                 console.error('Ошибка при удалении сообщения:', error);
             }
-            return;
+            return; // ВАЖНО: выходим здесь, не проверяем на предупреждения
         }
 
         // Проверяем на фразы для предупреждения
@@ -180,11 +202,14 @@ bot.on('message', async (msg) => {
                 }
                 
                 // Отправляем сообщение о добавлении в черный список
-                await bot.sendMessage(chatId, 
-                    `❌ ${username}, вы получили 3 предупреждения и добавлены в черный список. ` +
-                    `Ваши сообщения будут автоматически удаляться.`,
-                    { reply_to_message_id: messageId }
-                );
+                try {
+                    await bot.sendMessage(chatId, 
+                        `❌ ${username}, вы получили 3 предупреждения и добавлены в черный список. ` +
+                        `Ваши сообщения будут автоматически удаляться.`
+                    );
+                } catch (error) {
+                    console.error('Ошибка при отправке сообщения о бане:', error);
+                }
                 
                 console.log(`Пользователь ${userId} добавлен в черный список`);
             } else {
@@ -207,7 +232,7 @@ bot.on('message', async (msg) => {
 // Команды бота для администраторов
 bot.onText(/\/warnings (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const userId = match[1];
+    const targetUserId = match[1];
     
     // Проверяем права администратора
     try {
@@ -216,11 +241,24 @@ bot.onText(/\/warnings (.+)/, async (msg, match) => {
             return;
         }
     } catch (error) {
+        console.error('Ошибка проверки прав администратора:', error);
         return;
     }
     
-    const warnings = getUserWarnings(parseInt(userId));
-    await bot.sendMessage(chatId, `Пользователь ${userId} имеет ${warnings} предупреждений.`);
+    // Проверяем, что передан корректный ID
+    const userId = parseInt(targetUserId);
+    if (isNaN(userId)) {
+        await bot.sendMessage(chatId, 'Неверный формат ID пользователя. Используйте: /warnings 123456789');
+        return;
+    }
+    
+    const warnings = getUserWarnings(userId);
+    const isBlacklisted = isInBlackList(userId);
+    const status = isBlacklisted ? ' (в черном списке)' : '';
+    
+    await bot.sendMessage(chatId, `Пользователь ${userId} имеет ${warnings} предупреждений${status}.`);
+    
+    console.log(`Админ ${msg.from.id} запросил информацию о пользователе ${userId}: ${warnings} предупреждений`);
 });
 
 bot.onText(/\/blacklist/, async (msg) => {
