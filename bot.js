@@ -94,11 +94,10 @@ const DELETION_QUESTION_PHRASES = [
     'удалилось сообщение'
 ];
 
-// Функция проверки, содержит ли текст запрещенные фразы
+// Функция проверки, содержит ли текст запрещенные фразы (простая версия)
 function containsForbiddenPhrase(text) {
     const lowerText = text.toLowerCase().trim();
     
-    // Проверяем на точное совпадение с запрещенными фразами
     return FORBIDDEN_PHRASES.some(phrase => {
         const lowerPhrase = phrase.toLowerCase();
         
@@ -107,36 +106,30 @@ function containsForbiddenPhrase(text) {
             return true;
         }
         
-        // Проверяем, что фраза окружена пробелами, знаками препинания или началом/концом строки
-        const regex = new RegExp(`(^|[\\s.,!?;:()\\[\\]{}"\'-])${lowerPhrase.replace(/[.*+?^${}()|[\]\\]/g, '\\// Функция проверки, содержит ли текст запрещенные фразы
-function containsForbiddenPhrase(text) {
-    const lowerText = text.toLowerCase();
-    
-    // Список фраз, которые могут быть частью безобидных сообщений
-    const safeContexts = [
-        'что я с кем-то',
-        'с кем-то вчера',
-        'с кем-то сегодня',
-        'с кем-то общался',
-        'с кем-то общалась',
-        'с кем-то говорил',
-        'с кем-то говорила',
-        'с кем-то встречался',
-        'с кем-то встречалась',
-        'общалась в личке',
-        'общался в личке',
-        'говорил в личке',
-        'говорила в личке'
-    ];
-    
-    // Если сообщение содержит безопасный контекст, не удаляем его
-    if (safeContexts.some(context => lowerText.includes(context))) {
+        // Проверяем фразу окруженную пробелами
+        if (lowerText.includes(' ' + lowerPhrase + ' ')) {
+            return true;
+        }
+        
+        // Проверяем фразу в начале (после нее пробел или знак препинания)
+        if (lowerText.startsWith(lowerPhrase + ' ') || 
+            lowerText.startsWith(lowerPhrase + '.') ||
+            lowerText.startsWith(lowerPhrase + ',') ||
+            lowerText.startsWith(lowerPhrase + '!') ||
+            lowerText.startsWith(lowerPhrase + '?')) {
+            return true;
+        }
+        
+        // Проверяем фразу в конце (перед ней пробел или знак препинания)
+        if (lowerText.endsWith(' ' + lowerPhrase) || 
+            lowerText.endsWith('.' + lowerPhrase) ||
+            lowerText.endsWith(',' + lowerPhrase) ||
+            lowerText.endsWith('!' + lowerPhrase) ||
+            lowerText.endsWith('?' + lowerPhrase)) {
+            return true;
+        }
+        
         return false;
-    }
-    
-    return FORBIDDEN_PHRASES.some(phrase => lowerText.includes(phrase.toLowerCase()));
-}')}($|[\\s.,!?;:()\\[\\]{}"\'-])`, 'i');
-        return regex.test(lowerText);
     });
 }
 
@@ -249,8 +242,9 @@ bot.on('message', async (msg) => {
             }
             
             try {
+                const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
                 const explanationMessage = 
-                    `✂️ Это я удалил ваше сообщение из-за нарушения правил. Прочитайте их еще раз внимательнее. Если произошла ошибка, напишите админам в бот: @ProPerevod_bot\n[ваш Злой Миша]`;
+                    `✂️ ${username}, это я удалил ваше сообщение из-за нарушения правил. Прочитайте их еще раз внимательнее. Если произошла ошибка, напишите админам в бот: @ProPerevod_bot\n[ваш Злой Миша]`;
                 
                 // Подготавливаем опции для отправки
                 const sendOptions = { reply_to_message_id: messageId };
