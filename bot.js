@@ -90,6 +90,29 @@ const WARNING_PHRASES = [
 // Функция проверки, содержит ли текст запрещенные фразы
 function containsForbiddenPhrase(text) {
     const lowerText = text.toLowerCase();
+    
+    // Список фраз, которые могут быть частью безобидных сообщений
+    const safeContexts = [
+        'что я с кем-то',
+        'с кем-то вчера',
+        'с кем-то сегодня',
+        'с кем-то общался',
+        'с кем-то общалась',
+        'с кем-то говорил',
+        'с кем-то говорила',
+        'с кем-то встречался',
+        'с кем-то встречалась',
+        'общалась в личке',
+        'общался в личке',
+        'говорил в личке',
+        'говорила в личке'
+    ];
+    
+    // Если сообщение содержит безопасный контекст, не удаляем его
+    if (safeContexts.some(context => lowerText.includes(context))) {
+        return false;
+    }
+    
     return FORBIDDEN_PHRASES.some(phrase => lowerText.includes(phrase));
 }
 
