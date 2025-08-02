@@ -16,8 +16,16 @@ const MONITORED_TOPICS = process.env.MONITORED_TOPICS ? process.env.MONITORED_TO
 // ID группы для отчетов о банах
 const REPORTS_GROUP_ID = process.env.REPORTS_GROUP_ID;
 
-// Создаем экземпляр бота
-const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+// Создаем экземпляр бота с увеличенным тайм-аутом
+const bot = new TelegramBot(BOT_TOKEN, { 
+    polling: {
+        interval: 1000,
+        autoStart: true,
+        params: {
+            timeout: 30
+        }
+    }
+});
 
 // Хранилище предупреждений и черного списка (в продакшене лучше использовать базу данных)
 const userWarnings = new Map(); // userId -> количество предупреждений
