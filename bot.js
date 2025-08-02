@@ -39,7 +39,6 @@ const FORBIDDEN_PHRASES = [
     'файлик лс',
     'файлик в лс',
     'файлик в личку',
-    'в личке',
     'пиши в лс',
     'напиши в лс',
     'в личные сообщения',
@@ -57,43 +56,26 @@ const FORBIDDEN_PHRASES = [
 // Фразы, за которые выдается предупреждение
 const WARNING_PHRASES = [
     'есть машинка',
-    'Есть машинка',
-    'Есть Машинка',
     'скинь машинку',
-    'Скинь машинку',
-    'Скинь Машинку',
     'скину машинку',
-    'Скину машинку',
-    'Скину Машинку',
-    'машинка',
-    'Машинка',
     'го машинку',
-    'Го машинку',
-    'Го Машинку',
+    'го машинка',
     'лс машинка',
-    'ЛС машинка',
-    'ЛС Машинка',
-    'Лс машинка',
-    'Лс Машинка',
-    'машинка лс',
-    'Машинка лс',
-    'Машинка ЛС',
-    'Машинка Лс',
     'лс машинку',
-    'ЛС машинку',
-    'ЛС Машинку',
-    'Лс машинку',
-    'Лс Машинку',
-    'машнка',
-    'Машнка',
-    'личка',
-    'Личка',
-    'файл',
-    'Файл',
+    'лс файлик',
+    'лс файл',
+    'машинка лс',
+    'машинку лс',
+    'файлик лс',
+    'файл лс',
+    'го файлик',
+    'скинь файлик',
+    'скинь файл',
+    'скину файлик',
+    'скину файл',
     'бот дурак',
-    'Бот дурак',
-    'Бот Дурак',
-    'БОТ ДУРАК'
+    'личка файлик',
+    'личка машинка'
 ];
 
 // Фразы, на которые бот отвечает объяснением об удалении
@@ -113,6 +95,20 @@ const DELETION_QUESTION_PHRASES = [
 ];
 
 // Функция проверки, содержит ли текст запрещенные фразы
+function containsForbiddenPhrase(text) {
+    const lowerText = text.toLowerCase().trim();
+    
+    // Проверяем на точное совпадение с запрещенными фразами
+    return FORBIDDEN_PHRASES.some(phrase => {
+        const lowerPhrase = phrase.toLowerCase();
+        
+        // Точное совпадение всего сообщения
+        if (lowerText === lowerPhrase) {
+            return true;
+        }
+        
+        // Проверяем, что фраза окружена пробелами, знаками препинания или началом/концом строки
+        const regex = new RegExp(`(^|[\\s.,!?;:()\\[\\]{}"\'-])${lowerPhrase.replace(/[.*+?^${}()|[\]\\]/g, '\\// Функция проверки, содержит ли текст запрещенные фразы
 function containsForbiddenPhrase(text) {
     const lowerText = text.toLowerCase();
     
@@ -138,19 +134,22 @@ function containsForbiddenPhrase(text) {
         return false;
     }
     
-    return FORBIDDEN_PHRASES.some(phrase => lowerText.includes(phrase));
+    return FORBIDDEN_PHRASES.some(phrase => lowerText.includes(phrase.toLowerCase()));
+}')}($|[\\s.,!?;:()\\[\\]{}"\'-])`, 'i');
+        return regex.test(lowerText);
+    });
 }
 
 // Функция проверки, содержит ли текст фразы для предупреждения
 function containsWarningPhrase(text) {
     const lowerText = text.toLowerCase();
-    return WARNING_PHRASES.some(phrase => lowerText.includes(phrase));
+    return WARNING_PHRASES.some(phrase => lowerText.includes(phrase.toLowerCase()));
 }
 
 // Функция проверки, содержит ли текст вопросы об удалении
 function containsDeletionQuestion(text) {
     const lowerText = text.toLowerCase();
-    return DELETION_QUESTION_PHRASES.some(phrase => lowerText.includes(phrase));
+    return DELETION_QUESTION_PHRASES.some(phrase => lowerText.includes(phrase.toLowerCase()));
 }
 
 // Функция получения количества предупреждений пользователя
@@ -466,12 +465,24 @@ bot.onText(/\/unban (.+)/, async (msg, match) => {
     }
 });
 
-// Команда приветствия для всех пользователей
+// Команда приветствия для администраторов
 bot.onText(/\/misha/, async (msg) => {
     const chatId = msg.chat.id;
     
     // НЕ работает в группе отчетов
     if (REPORTS_GROUP_ID && chatId.toString() === REPORTS_GROUP_ID) {
+        return;
+    }
+    
+    // Проверяем права администратора
+    try {
+        const chatMember = await bot.getChatMember(chatId, msg.from.id);
+        if (!['administrator', 'creator'].includes(chatMember.status)) {
+            console.log(`Пользователь ${msg.from.id} попытался использовать /misha без прав администратора`);
+            return;
+        }
+    } catch (error) {
+        console.error('Ошибка проверки прав администратора для /misha:', error);
         return;
     }
     
@@ -488,7 +499,7 @@ bot.onText(/\/misha/, async (msg) => {
         }
         
         await bot.sendMessage(chatId, greetingMessage, sendOptions);
-        console.log(`Команда /misha выполнена пользователем ${msg.from.id} в чате ${chatId}`);
+        console.log(`Команда /misha выполнена администратором ${msg.from.id} в чате ${chatId}`);
     } catch (error) {
         console.error('Ошибка при отправке приветствия:', error);
     }
