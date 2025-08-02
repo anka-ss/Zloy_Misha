@@ -90,17 +90,6 @@ function isInBlackList(userId) {
     return blackList.has(userId);
 }
 
-// Функция проверки, является ли пользователь администратором
-async function isUserAdmin(chatId, userId) {
-    try {
-        const chatMember = await bot.getChatMember(chatId, userId);
-        return ['administrator', 'creator'].includes(chatMember.status);
-    } catch (error) {
-        console.error('Ошибка при проверке прав администратора:', error);
-        return false;
-    }
-}
-
 // Основной обработчик сообщений
 bot.on('message', async (msg) => {
     try {
@@ -121,10 +110,15 @@ bot.on('message', async (msg) => {
             }
         }
 
-        // Проверяем, не является ли пользователь администратором
-        const isAdmin = await isUserAdmin(chatId, userId);
-        if (isAdmin) {
-            return; // Игнорируем сообщения от администраторов
+        // Проверяем, не является ли пользователь администратором (ПРОСТАЯ проверка)
+        try {
+            const chatMember = await bot.getChatMember(chatId, userId);
+            if (['administrator', 'creator'].includes(chatMember.status)) {
+                return; // Игнорируем сообщения от администраторов
+            }
+        } catch (error) {
+            // Если не удалось проверить статус, продолжаем как с обычным пользователем
+            console.log(`Не удалось проверить статус пользователя ${userId}:`, error.message);
         }
 
         // Проверяем, не в черном списке ли пользователь
@@ -181,7 +175,7 @@ bot.on('message', async (msg) => {
                 // Отправляем сообщение о добавлении в черный список
                 await bot.sendMessage(chatId, 
                     `❌ ${username}, вы получили 3 предупреждения и добавлены в черный список. ` +
-                    `Ваши сообщения будут автоматически удаляться.`,
+                    `Ваши сообщения будут автоматически удалены.`,
                     { reply_to_message_id: messageId }
                 );
                 
@@ -209,8 +203,12 @@ bot.onText(/\/warnings (.+)/, async (msg, match) => {
     const userId = match[1];
     
     // Проверяем права администратора
-    const isAdmin = await isUserAdmin(chatId, msg.from.id);
-    if (!isAdmin) {
+    try {
+        const chatMember = await bot.getChatMember(chatId, msg.from.id);
+        if (!['administrator', 'creator'].includes(chatMember.status)) {
+            return;
+        }
+    } catch (error) {
         return;
     }
     
@@ -222,8 +220,12 @@ bot.onText(/\/blacklist/, async (msg) => {
     const chatId = msg.chat.id;
     
     // Проверяем права администратора
-    const isAdmin = await isUserAdmin(chatId, msg.from.id);
-    if (!isAdmin) {
+    try {
+        const chatMember = await bot.getChatMember(chatId, msg.from.id);
+        if (!['administrator', 'creator'].includes(chatMember.status)) {
+            return;
+        }
+    } catch (error) {
         return;
     }
     
@@ -240,8 +242,12 @@ bot.onText(/\/unban (.+)/, async (msg, match) => {
     const userId = parseInt(match[1]);
     
     // Проверяем права администратора
-    const isAdmin = await isUserAdmin(chatId, msg.from.id);
-    if (!isAdmin) {
+    try {
+        const chatMember = await bot.getChatMember(chatId, msg.from.id);
+        if (!['administrator', 'creator'].includes(chatMember.status)) {
+            return;
+        }
+    } catch (error) {
         return;
     }
     
