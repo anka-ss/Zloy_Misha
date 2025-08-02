@@ -13,6 +13,9 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONITORED_GROUPS = process.env.MONITORED_GROUPS ? process.env.MONITORED_GROUPS.split(',') : [];
 const MONITORED_TOPICS = process.env.MONITORED_TOPICS ? process.env.MONITORED_TOPICS.split(',') : [];
 
+// ID группы для отчетов о банах
+const REPORTS_GROUP_ID = process.env.REPORTS_GROUP_ID;
+
 // Создаем экземпляр бота
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
@@ -198,13 +201,37 @@ bot.on('message', async (msg) => {
                     // Если не удалось замьютить, продолжаем с удалением сообщений
                 }
                 
-                // Отправляем сообщение о добавлении в черный список
+                // Отправляем сообщение о добавлении в черный список в основную группу
                 try {
                     await bot.sendMessage(chatId, 
                         `❌ ${username}, вы получили 3 предупреждения и добавлены в черный список. (3/3)\n[ваш Злой Миша]`
                     );
                 } catch (error) {
                     console.error('Ошибка при отправке сообщения о бане:', error);
+                }
+                
+                // Отправляем отчет в группу отчетов
+                if (REPORTS_GROUP_ID) {
+                    try {
+                        const groupName = msg.chat.title || `группе ${chatId}`;
+                        const userInfo = msg.from.username 
+                            ? `@${msg.from.username} (ID: ${userId})`
+                            : `${msg.from.first_name} (ID: ${userId})`;
+                        
+                        const reportMessage = 
+                            `🚫 НОВЫЙ БАН\n\n` +
+                            `👤 Пользователь: ${userInfo}\n` +
+                            `💬 Группа: ${groupName}\n` +
+                            `📝 Нарушение: "${text}"\n` +
+                            `⚠️ Предупреждений: 3/3\n` +
+                            `🕐 Время: ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}\n\n` +
+                            `[Злой Миша - отчет о модерации]`;
+                        
+                        await bot.sendMessage(REPORTS_GROUP_ID, reportMessage);
+                        console.log(`Отчет о бане отправлен в группу отчетов: ${userId}`);
+                    } catch (reportError) {
+                        console.error('Ошибка при отправке отчета:', reportError);
+                    }
                 }
                 
                 console.log(`Пользователь ${userId} добавлен в черный список`);
@@ -364,6 +391,7 @@ app.listen(PORT, () => {
     console.log('Бот запущен и готов к работе');
     console.log(`Мониторим группы: ${MONITORED_GROUPS.join(', ')}`);
     console.log(`Мониторим темы: ${MONITORED_TOPICS.join(', ')}`);
+    console.log(`Группа отчетов: ${REPORTS_GROUP_ID || 'не настроена'}`);
 });
 
 // Graceful shutdown
