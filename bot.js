@@ -130,8 +130,13 @@ bot.on('message', async (msg) => {
         const messageId = msg.message_id;
         const text = msg.text || msg.caption || '';
         
-        // Проверяем, что это нужная группа
+        // Проверяем, что это нужная группа (НЕ группа отчетов)
         if (!MONITORED_GROUPS.includes(chatId.toString())) {
+            return;
+        }
+
+        // Дополнительная проверка: игнорируем группу отчетов
+        if (REPORTS_GROUP_ID && chatId.toString() === REPORTS_GROUP_ID) {
             return;
         }
 
