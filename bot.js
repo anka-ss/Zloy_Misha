@@ -30,6 +30,7 @@ const bot = new TelegramBot(BOT_TOKEN, {
 // Хранилище предупреждений и черного списка (в продакшене лучше использовать базу данных)
 const userWarnings = new Map(); // userId -> количество предупреждений
 const blackList = new Set(); // множество заблокированных пользователей
+const recentExplanations = new Map(); // userId -> timestamp последнего объяснения
 
 // Запрещенные фразы для удаления сообщений
 const FORBIDDEN_PHRASES = [
@@ -183,6 +184,9 @@ bot.on('message', async (msg) => {
         const messageId = msg.message_id;
         const text = msg.text || msg.caption || '';
         
+        // Дополнительное логирование для диагностики
+        console.log(`[${new Date().toLocaleTimeString()}] Обработка сообщения от ${userId} в чате ${chatId}: "${text.substring(0, 50)}..."`);
+        
         // Проверяем, что это нужная группа (НЕ группа отчетов)
         if (!MONITORED_GROUPS.includes(chatId.toString())) {
             return;
@@ -231,12 +235,26 @@ bot.on('message', async (msg) => {
 
         // Проверяем на вопросы об удалении сообщений
         if (containsDeletionQuestion(text)) {
+            // Проверяем, не отправляли ли мы недавно объяснение этому пользователю
+            const lastExplanation = recentExplanations.get(userId);
+            const now = Date.now();
+            
+            // Если прошло меньше 30 секунд с последнего объяснения, не отправляем повторно
+            if (lastExplanation && (now - lastExplanation) < 30000) {
+                console.log(`Пропускаем дублирующее объяснение для пользователя ${userId}`);
+                return;
+            }
+            
             try {
                 const explanationMessage = 
                     `✂️ Это я удалил ваше сообщение из-за нарушения правил. Прочитайте их еще раз внимательнее. Если произошла ошибка, напишите админам в бот: @ProPerevod_bot\n[ваш Злой Миша]`;
                 
                 await bot.sendMessage(chatId, explanationMessage, { reply_to_message_id: messageId });
-                console.log(`Отправлено объяснение об удалении пользователю ${userId}`);
+                
+                // Запоминаем время отправки объяснения
+                recentExplanations.set(userId, now);
+                
+                console.log(`Отправлено объяснение об удалении пользователю ${userId} в ${new Date().toLocaleTimeString()}`);
             } catch (error) {
                 console.error('Ошибка при отправке объяснения:', error);
             }
